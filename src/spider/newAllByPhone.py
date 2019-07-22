@@ -27,18 +27,21 @@ def get_proxy():
 
 
 # 创建CSV
-def createCSV():
-    if os.path.exists("room.csv"):
-        os.remove('room.csv')
-    with open('room.csv', 'w', encoding='utf-8', newline='') as csvfile:
-        fieldnames = ['UnitTypeID', 'UnitTypeName', 'ProductName', 'Breakfast', 'BedType', 'PeopleNum', 'CancelRule',
+def createCSV(hotelid):
+    if os.path.exists(hotelid + "room.csv"):
+        os.remove(hotelid + 'room.csv')
+    with open(hotelid + 'room.csv', 'w', encoding='utf-8', newline='') as csvfile:
+        fieldnames = ['HotelID', 'HotelName', 'RoomTypeID', 'RoomTypeName', 'RoomID',
+                      'ProductName', 'Breakfast', 'BedType',
+                      'PeopleNum',
+                      'CancelRule',
                       'BusinessDate', 'Price', 'CreateTime']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
 
 # 获取房间数据
-def getResult(days):
+def getResult(days, hotelid):
     # 定义phantomJS的一些设置和headers
     dcap = dict(DesiredCapabilities.PHANTOMJS)
     # 从USER_AGENTS选一个浏览器头，伪装浏览器，下面可以更换的请求头
@@ -47,7 +50,8 @@ def getResult(days):
     #   MQQBrowser/26 Mozilla/5.0 (Linux; U; Android 2.3.7; zh-cn; MB200 Build/GRJ22; CyanogenMod-7) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1
     ua = UserAgent()
     myua = ua.random
-    print("此次USER-AGENT为：",myua)
+    # myua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36'
+    print("此次USER-AGENT为：", myua)
     dcap["phantomjs.page.settings.userAgent"] = myua
     # 不载入图片，爬页面速度会快很多
     dcap["phantomjs.page.settings.loadImages"] = False
@@ -64,14 +68,14 @@ def getResult(days):
     ]
 
     # 创建phantomjs网页驱动器
-    browser = webdriver.PhantomJS(desired_capabilities=dcap,service_args=service_args)
+    browser = webdriver.PhantomJS(desired_capabilities=dcap, service_args=service_args)
     # browser = webdriver.PhantomJS()
     # 等待响应时间为10s
     wait = WebDriverWait(browser, 8)
 
     try:
         print("共抓取", days, "天信息！")
-        # 抓取从当天开始7天信息
+        # 抓取从当天开始
         for day in range(days):
             print('第', day, '天抓取：')
 
@@ -79,9 +83,9 @@ def getResult(days):
             # url后缀
             date = int(datetime.datetime.now().strftime('%Y%m%d')) + day
             BusinessDate = datetime.datetime.strptime(str(date), "%Y%m%d").strftime('%Y-%m-%d')
-            url = 'https://m.ctrip.com/webapp/hotel/hoteldetail/532149.html?days=1&atime=' + str(
+            url = 'https://m.ctrip.com/webapp/hotel/hoteldetail/' + hotelid + '.html?days=1&atime=' + str(
                 date) + '&contrl=0&num=undefined&biz=undefined'
-            # url = 'https://m.ctrip.com/webapp/hotel/hoteldetail/532149.html?days=1&atime=20190719&contrl=0&num=undefined&biz=undefined'
+            # url = 'https://m.ctrip.com/webapp/hotel/hoteldetail/532149.html?days=1&atime=20190719&contrl=0&num=undefined&biz=undefined&ctm_ref=ch5_hp_bs_lst'
             print(url)
 
             # selenium开始解析网页
@@ -98,14 +102,21 @@ def getResult(days):
             html = browser.page_source
             doc = pq(html)
 
-            # 获取所有房型的名字
+            # 获取酒店名字
+            hotelname = doc('.des.js_honor_desc h1 span').text()
+            # 获取所有房型的ID和名字
             roomtypes = doc('.cell-star.room-bd.js_show_baseroom')
-            typenamelist = []
+            typelist = []
             for i in roomtypes.items():
+                typeid = i.attr('data-bid')
                 typename = i.find('h3')
                 typename.find('span').remove()
-                typenamelist.append(typename.text())
-            print("共有房型数：", len(typenamelist))
+                roomtype = {
+                    'typeid': typeid,
+                    'typename': typename.text()
+                }
+                typelist.append(roomtype)
+            print("共有房型数：", len(typelist))
 
             # 获取每个房型下面的详细列表
             allroomtypes = doc('.dl-room-type.js_roomlist .sub-romm.js_childroomlist')
@@ -113,8 +124,9 @@ def getResult(days):
             for j in allroomtypes.items():
                 details = j.find('.item.sub-price-layout ')
                 for k in details.items():
+                    typeid = typelist[num]['typeid']  #
+                    typename = typelist[num]['typename']  #
                     roomid = str(k.attr('data-roomid'))  #
-                    name = typenamelist[num]  #
                     # detail的第一部分
                     d1 = k.find('h4')
                     d1.find('span').remove()
@@ -133,11 +145,16 @@ def getResult(days):
                     d3.find('small').remove()
                     price = str(d3.text())  #
                     gettime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    print(roomid, name, breakfast, bed, personnum, window, ProductName, policy, price, gettime,
+                    print(hotelid, hotelname, typeid, typename, roomid, breakfast, bed, personnum, window, ProductName,
+                          policy,
+                          price, gettime,
                           BusinessDate)
                     room = {
-                        'UnitTypeID': roomid,
-                        'UnitTypeName': name,
+                        'HotelID': hotelid,
+                        'HotelName': hotelname,
+                        'RoomTypeID': typeid,
+                        'RoomTypeName': typename,
+                        'RoomID': roomid,
                         'ProductName': ProductName,
                         'Breakfast': breakfast,
                         'BedType': bed,
@@ -149,8 +166,9 @@ def getResult(days):
                     }
                     # 写入CSV
                     try:
-                        with open('room.csv', 'a', encoding='utf-8', newline='') as csvfile:
-                            fieldnames = ['UnitTypeID', 'UnitTypeName', 'ProductName', 'Breakfast', 'BedType',
+                        with open(hotelid + 'room.csv', 'a', encoding='utf-8', newline='') as csvfile:
+                            fieldnames = ['HotelID', 'HotelName', 'RoomTypeID', 'RoomTypeName', 'RoomID',
+                                          'ProductName', 'Breakfast', 'BedType',
                                           'PeopleNum',
                                           'CancelRule',
                                           'BusinessDate', 'Price', 'CreateTime']
@@ -160,11 +178,11 @@ def getResult(days):
                         print('写入CSV失败')
                 num += 1
             # break
-            if (day == days-1):
+            if (day == days - 1):
                 break
 
-            t = random.randint(30,60)
-            print('休息',t,'秒')
+            t = random.randint(30, 60)
+            print('休息', t, '秒')
             time.sleep(t)
 
     finally:
@@ -172,5 +190,6 @@ def getResult(days):
 
 
 if __name__ == '__main__':
-    createCSV()
-    getResult(7)
+    hotelid = '4592984'
+    createCSV(hotelid)
+    getResult(2, hotelid)

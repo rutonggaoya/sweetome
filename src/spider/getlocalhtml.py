@@ -9,21 +9,28 @@ f.close()
 doc = pq(html)
 
 # 创建CSV
-if os.path.exists("localroom.csv"):
-    os.remove('localroom.csv')
-with open('localroom.csv', 'w', encoding='utf-8', newline='') as csvfile:
-    fieldnames = ['UnitTypeID', 'UnitTypeName', 'Breakfast', 'BedType', 'PeopleNum', 'CancelRule', 'Price', 'CreateTime']
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-    writer.writeheader()
+# if os.path.exists("localroom.csv"):
+#     os.remove('localroom.csv')
+# with open('localroom.csv', 'w', encoding='utf-8', newline='') as csvfile:
+#     fieldnames = ['UnitTypeID', 'UnitTypeName', 'Breakfast', 'BedType', 'PeopleNum', 'CancelRule', 'Price', 'CreateTime']
+#     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+#     writer.writeheader()
 
-#获取所有房型的名字
+#获取酒店名字
+hotelname = doc('.des.js_honor_desc h1 span').text()
+#获取所有房型的ID和名字
 roomtypes = doc('.cell-star.room-bd.js_show_baseroom')
-typenamelist = []
+typelist = []
 for i in roomtypes.items():
+    typeid = i.attr('data-bid')
     typename = i.find('h3')
     typename.find('span').remove()
-    typenamelist.append(typename.text())
-print("共有房型数：",len(typenamelist))
+    roomtype = {
+        'typeid':typeid,
+        'typename':typename.text()
+    }
+    typelist.append(roomtype)
+print("共有房型数：",len(typelist))
 
 #获取每个房型下面的详细列表
 allroomtypes = doc('.dl-room-type.js_roomlist .sub-romm.js_childroomlist')
@@ -33,8 +40,9 @@ for j in allroomtypes.items():
     details = j.find('.item.sub-price-layout ')
     # details = j.find('.cell-star.room--space3')
     for k in details.items():
-        roomid = str(k.attr('data-roomid'))#
-        name = typenamelist[num]#
+        typeid = typelist[num]['typeid']  #
+        typename = typelist[num]['typename'] #
+        roomid = str(k.attr('data-roomid'))  #
         #detail的第一部分(早饭，床型，人数，窗户)
         d1 = k.find('h4')
         d1.find('span').remove()
@@ -53,23 +61,28 @@ for j in allroomtypes.items():
         d3.find('small').remove()
         price = str(d3.text())#
         time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print(roomid,name,breakfast,bed,personnum,window,ProductName,policy,price)
+        print(hotelname,typeid,typename,roomid,breakfast,bed,personnum,window,ProductName,policy,price)
         room = {
-            'UnitTypeID': roomid,
-            'UnitTypeName': name,
+            # 'HotelID': name,
+            'HotelName': hotelname,
+            'RoomTypeID': typeid,
+            'RoomTypeName': typename,
+            'RoomID': roomid,
+            'ProductName': ProductName,
             'Breakfast': breakfast,
             'BedType': bed,
             'PeopleNum': personnum,
-            'CancelRule':policy,
+            'CancelRule': policy,
+            # 'BusinessDate': BusinessDate,
             'Price': price,
-            'CreateTime': time
-        }
+            # 'CreateTime': gettime
+}
         #写入excel
-        try:
-            with open('localroom.csv', 'a', encoding='utf-8', newline='') as csvfile:
-                fieldnames = ['UnitTypeID', 'UnitTypeName', 'Breakfast', 'BedType', 'PeopleNum', 'CancelRule', 'Price', 'CreateTime']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writerow(room)
-        except:
-            print('写入CSV失败')
+        # try:
+        #         #     with open('localroom.csv', 'a', encoding='utf-8', newline='') as csvfile:
+        #         #         fieldnames = ['UnitTypeID', 'UnitTypeName', 'Breakfast', 'BedType', 'PeopleNum', 'CancelRule', 'Price', 'CreateTime']
+        #         #         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        #         #         writer.writerow(room)
+        #         # except:
+        #         #     print('写入CSV失败')
     num += 1
